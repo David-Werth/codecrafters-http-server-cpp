@@ -19,7 +19,8 @@ int main(int argc, char **argv) {
   // Uncomment this block to pass the first stage
   
    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-   if (server_fd < 0) {
+   if (server_fd < 0) 
+   {
     std::cerr << "Failed to create server socket\n";
     return 1;
    }
