@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <cstdio>
 #include <netdb.h>
 #include <regex>
 #include <sstream>
@@ -10,6 +11,7 @@
 #include <cstring>
 #include <iostream>
 #include <string>
+#include <vector>
 
 int main(int argc, char **argv) {
   // Flush after every std::cout / std::cerr
@@ -75,30 +77,28 @@ int main(int argc, char **argv) {
       res << "HTTP/1.1 200 OK\r\n\r\n";
 
     } else if (req_buffer.starts_with("GET /echo/")) {
-      std::string firstLine = req_buffer.substr(0, req_buffer.find("\r\n"));
+      int route_index_start = req_buffer.find_first_of("/echo/", 0);
+      int route_index_end = route_index_start + 6;
 
-      std::regex pattern(R"(/echo/([^\s]+))");
-      std::smatch matches;
+      int first_whitespace_index =
+          req_buffer.find_first_of(" ", route_index_end);
 
-      if (std::regex_search(firstLine, matches, pattern)) {
-        if (matches.size() > 1) {
-          std::string result = matches[1].str();
-          res << "HTTP/1.1 200 OK\r\nContent-Type: "
-              << "text/plain\r\nContent-Length: " << result.length()
-              << "\r\n\r\n"
-              << result;
-        }
-      } else {
-        std::cout << "'/echo/' pattern not found or no value after it"
-                  << std::endl;
-      }
+      std::string extracted_str = req_buffer.substr(
+          route_index_end, first_whitespace_index - route_index_end);
+
+      std::cout << "extracted_str: " << extracted_str << '\n';
+
+      res << "HTTP/1.1 200 OK\r\nContent-Type: "
+          << "text/plain\r\nContent-Length: " << extracted_str.length()
+          << "\r\n\r\n"
+          << extracted_str;
 
     } else {
       res << "HTTP/1.1 404 Not Found\r\n\r\n";
     }
   }
 
-  std::cout << "res: " << res.str() << '\n';
+  // std::cout << "res: " << res.str() << '\n';
 
   // std::cout << "Buffer: " << buffer << '\n';
 
