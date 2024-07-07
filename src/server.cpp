@@ -79,62 +79,66 @@ int main(int argc, char **argv) {
 
   std::cout << "Waiting for a client to connect...\n";
 
-  int client = accept(server_fd, (struct sockaddr *)&client_addr,
-                      (socklen_t *)&client_addr_len);
+  std::vector<int> connections;
 
-  std::string req_buffer(1024, '\0');
+  while (true) {
 
-  size_t bytes_received = recv(client, &req_buffer[0], req_buffer.size(), 0);
+    std::string req_buffer(1024, '\0');
 
-  std::ostringstream res;
+    int client = accept(server_fd, (struct sockaddr *)&client_addr,
+                        (socklen_t *)&client_addr_len);
 
-  if (bytes_received > 0) {
+    size_t bytes_received = recv(client, &req_buffer[0], req_buffer.size(), 0);
 
-    if (req_buffer.starts_with("GET / HTTP/1.1")) {
-      res << "HTTP/1.1 200 OK\r\n\r\n";
+    std::ostringstream res;
 
-    } else if (req_buffer.starts_with("GET /echo/")) {
-      int route_index_start = req_buffer.find_first_of("/echo/", 0);
-      int route_index_end = route_index_start + 6;
+    if (bytes_received > 0) {
 
-      int first_whitespace_index =
-          req_buffer.find_first_of(" ", route_index_end);
+      if (req_buffer.starts_with("GET / HTTP/1.1")) {
+        std::cout << "req_buffer: " << req_buffer << '\n';
+        res << "HTTP/1.1 200 OK\r\n\r\n";
 
-      std::string extracted_str = req_buffer.substr(
-          route_index_end, first_whitespace_index - route_index_end);
+      } else if (req_buffer.starts_with("GET /echo/")) {
+        int route_index_start = req_buffer.find_first_of("/echo/", 0);
+        int route_index_end = route_index_start + 6;
 
-      res << build_res("200 OK", "text/plain", extracted_str, res);
+        int first_whitespace_index =
+            req_buffer.find_first_of(" ", route_index_end);
 
-    } else if (req_buffer.starts_with("GET /user-agent")) {
-      int headers_index_start = req_buffer.find_first_of("\r\n", 0) + 2;
-      int headers_index_end =
-          req_buffer.substr(headers_index_start, *req_buffer.end())
-              .find_first_of("\r\n", 0);
+        std::string extracted_str = req_buffer.substr(
+            route_index_end, first_whitespace_index - route_index_end);
 
-      std::string headers = req_buffer.substr(
-          headers_index_start, headers_index_end - headers_index_start);
+        res << build_res("200 OK", "text/plain", extracted_str, res);
 
-      int user_agent_index_start =
-          str_tolower(headers).find("user-agent", 0) + 12;
+      } else if (req_buffer.starts_with("GET /user-agent")) {
+        int headers_index_start = req_buffer.find_first_of("\r\n", 0) + 2;
+        int headers_index_end =
+            req_buffer.substr(headers_index_start, *req_buffer.end())
+                .find_first_of("\r\n", 0);
 
-      int user_agent_index_end = headers.find("\r\n", user_agent_index_start);
+        std::string headers = req_buffer.substr(
+            headers_index_start, headers_index_end - headers_index_start);
 
-      std::string user_agent =
-          headers.substr(user_agent_index_start,
-                         user_agent_index_end - user_agent_index_start);
+        int user_agent_index_start =
+            str_tolower(headers).find("user-agent", 0) + 12;
 
-      res << build_res("200 OK", "text/plain", user_agent, res);
+        int user_agent_index_end = headers.find("\r\n", user_agent_index_start);
 
-    } else {
-      res << "HTTP/1.1 404 Not Found\r\n\r\n";
+        std::string user_agent =
+            headers.substr(user_agent_index_start,
+                           user_agent_index_end - user_agent_index_start);
+
+        res << build_res("200 OK", "text/plain", user_agent, res);
+
+      } else {
+        res << "HTTP/1.1 404 Not Found\r\n\r\n";
+      }
     }
+
+    // std::cout << "res: " << res.str() << '\n';
+
+    send(client, res.str().c_str(), res.str().size(), 0);
   }
-
-  // std::cout << "res: " << res.str() << '\n';
-
-  // std::cout << "Buffer: " << buffer << '\n';
-
-  send(client, res.str().c_str(), res.str().size(), 0);
 
   close(server_fd);
 
