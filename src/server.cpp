@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -43,6 +44,64 @@ std::string get_pathname(std::string req_buffer, std::string route) {
   return req_buffer.substr(route_index_end,
                            first_whitespace_index - route_index_end);
 }
+
+bool route_match(const std::string &req_path, const std::string &route_name) {
+  bool match;
+
+  if (std::count(route_name.begin(), route_name.end(), ':')) {
+    const std::string base_path =
+        route_name.substr(0, route_name.find_first_of(':') - 1);
+    const std::string req_base_path =
+        base_path.substr(0, route_name.find_first_of(':') - 1);
+
+    return req_base_path == base_path;
+  }
+  return req_path == route_name;
+}
+
+std::string extract_method(const std::string &req_buffer) {
+  int first_whitespace_index = req_buffer.find_first_of(' ');
+  return req_buffer.substr(*req_buffer.begin(), first_whitespace_index);
+}
+
+std::string extract_path(const std::string &req_buffer) {
+  int start_index = req_buffer.find_first_of('/');
+  int end_index = req_buffer.find_first_of(' ', start_index);
+  return req_buffer.substr(start_index, end_index - start_index);
+}
+
+std::string extract_headers(const std::string &req_buffer) {
+  std::stringstream ss(req_buffer);
+  std::string line;
+
+  // Extract the first line (request method, URI, protocol)
+  getline(ss, line);
+  // Loop through the remaining lines until an empty line is encountered
+  std::string headers;
+  while (getline(ss, line) && !line.empty()) {
+    headers += line + "\r\n";
+  }
+  return headers;
+}
+
+struct Request {
+  std::string method;
+  std::string path;
+  std::string headers;
+  std::string body;
+  Request(std::string &req_buffer) {
+    method = extract_method(req_buffer);
+    path = extract_path(req_buffer);
+    headers = extract_headers(req_buffer);
+    // body = extract_body(req_buffer);
+  };
+};
+
+struct Response {
+  std::string headers;
+  std::string body;
+  Response(std::string &req_buffer){};
+};
 
 int main(int argc, char **argv) {
   // Flush after every std::cout / std::cerr
@@ -107,26 +166,26 @@ int main(int argc, char **argv) {
 
     if (bytes_received > 0) {
 
-      if (req_buffer.starts_with("GET / HTTP/1.1")) {
-        std::cout << "req_buffer: " << req_buffer << '\n';
+      Request request(req_buffer);
+
+      std::cout << "req_buffer: " << req_buffer << '\n';
+
+      if (route_match(request.path, "/")) {
+
         res << "HTTP/1.1 200 OK\r\n\r\n";
 
-      } else if (req_buffer.starts_with("GET /echo/")) {
+      } else if (route_match(request.path, "/echo")) {
         res << build_res("200 OK", "text/plain",
                          get_pathname(req_buffer, "echo"), res);
-      } else if (req_buffer.starts_with("GET /user-agent")) {
-        int headers_index_start = req_buffer.find_first_of("\r\n", 0) + 2;
-        int headers_index_end =
-            req_buffer.substr(headers_index_start, *req_buffer.end())
-                .find_first_of("\r\n", 0);
+      } else if (route_match(request.path, "/user-agent")) {
 
-        std::string headers = req_buffer.substr(
-            headers_index_start, headers_index_end - headers_index_start);
+        std::string headers = request.headers;
 
         int user_agent_index_start =
             str_tolower(headers).find("user-agent", 0) + 12;
 
-        int user_agent_index_end = headers.find("\r\n", user_agent_index_start);
+        int user_agent_index_end =
+            headers.find_first_of("\r\n", user_agent_index_start);
 
         std::string user_agent =
             headers.substr(user_agent_index_start,
@@ -134,8 +193,10 @@ int main(int argc, char **argv) {
 
         res << build_res("200 OK", "text/plain", user_agent, res);
 
-      } else if (req_buffer.starts_with("GET /files")) {
+      } else if (route_match(request.path, "/files/:filename")) {
         std::string filepath = argv[2] + get_pathname(req_buffer, "files");
+
+        std::cout << "WORKING " << '\n';
 
         if (std::filesystem::exists(filepath)) {
           std::ifstream ifs(filepath);
