@@ -36,7 +36,8 @@ std::string str_tolower(std::string str) {
 }
 
 std::string get_pathname(std::string req_buffer, std::string route) {
-  int route_index_start = req_buffer.find_first_of("/" + route + "/", 0);
+  int route_index_start =
+      req_buffer.find_first_of("/" + route + "/", *req_buffer.begin());
   int route_index_end = route_index_start + route.length() + 2;
 
   int first_whitespace_index = req_buffer.find_first_of(" ", route_index_end);
@@ -71,17 +72,11 @@ std::string extract_path(const std::string &req_buffer) {
 }
 
 std::string extract_headers(const std::string &req_buffer) {
-  std::stringstream ss(req_buffer);
-  std::string line;
+  int headers_start_index = req_buffer.find_first_of("\r\n") + 2;
 
-  // Extract the first line (request method, URI, protocol)
-  getline(ss, line);
-  // Loop through the remaining lines until an empty line is encountered
-  std::string headers;
-  while (getline(ss, line) && !line.empty()) {
-    headers += line + "\r\n";
-  }
-  return headers;
+  return req_buffer.substr(headers_start_index,
+                           req_buffer.find_first_of("\r\n\r\n") -
+                               headers_start_index);
 }
 
 struct Request {
@@ -168,12 +163,10 @@ int main(int argc, char **argv) {
 
       Request request(req_buffer);
 
-      std::cout << "req_buffer: " << req_buffer << '\n';
+      // std::cout << "req_buffer: " << req_buffer << '\n';
 
       if (route_match(request.path, "/")) {
-
         res << "HTTP/1.1 200 OK\r\n\r\n";
-
       } else if (route_match(request.path, "/echo")) {
         res << build_res("200 OK", "text/plain",
                          get_pathname(req_buffer, "echo"), res);
@@ -195,8 +188,6 @@ int main(int argc, char **argv) {
 
       } else if (route_match(request.path, "/files/:filename")) {
         std::string filepath = argv[2] + get_pathname(req_buffer, "files");
-
-        std::cout << "WORKING " << '\n';
 
         if (std::filesystem::exists(filepath)) {
           std::ifstream ifs(filepath);
