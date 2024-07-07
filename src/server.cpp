@@ -135,7 +135,9 @@ int main(int argc, char **argv) {
         res << build_res("200 OK", "text/plain", user_agent, res);
 
       } else if (req_buffer.starts_with("GET /files")) {
-        std::string full_path = "/tmp/" + get_pathname(req_buffer, "files");
+        std::string full_path =
+            "/tmp/data/codecrafters.io/http-server-tester/" +
+            get_pathname(req_buffer, "files");
 
         if (std::filesystem::exists(full_path)) {
           std::ifstream ifs(full_path);
