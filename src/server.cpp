@@ -135,20 +135,10 @@ int main(int argc, char **argv) {
         res << build_res("200 OK", "text/plain", user_agent, res);
 
       } else if (req_buffer.starts_with("GET /files")) {
-        std::string filename = get_pathname(req_buffer, "files");
-        std::string directory = "/tmp";
-        std::string full_path = directory + "/" + filename;
-        std::vector<std::string> files_in_directory;
+        std::string full_path = "/tmp/" + get_pathname(req_buffer, "files");
 
-        for (const auto &entry :
-             std::filesystem::directory_iterator(directory)) {
-          files_in_directory.push_back(entry.path());
-        }
-
-        if (std::count(files_in_directory.begin(), files_in_directory.end(),
-                       directory + "/" + filename)) {
-
-          std::ifstream ifs(directory + "/" + filename);
+        if (std::filesystem::exists(full_path)) {
+          std::ifstream ifs(full_path);
           std::string file_content((std::istreambuf_iterator<char>(ifs)),
                                    (std::istreambuf_iterator<char>()));
 
