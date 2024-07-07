@@ -1,7 +1,10 @@
 #include <algorithm>
 #include <arpa/inet.h>
+#include <array>
 #include <cctype>
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <netdb.h>
 #include <regex>
 #include <sstream>
@@ -29,6 +32,16 @@ std::string str_tolower(std::string str) {
   std::transform(str.begin(), str.end(), str.begin(),
                  [](char ch) { return std::tolower(ch); });
   return str;
+}
+
+std::string get_pathname(std::string req_buffer, std::string route) {
+  int route_index_start = req_buffer.find_first_of("/" + route + "/", 0);
+  int route_index_end = route_index_start + route.length() + 2;
+
+  int first_whitespace_index = req_buffer.find_first_of(" ", route_index_end);
+
+  return req_buffer.substr(route_index_end,
+                           first_whitespace_index - route_index_end);
 }
 
 int main(int argc, char **argv) {
@@ -99,17 +112,8 @@ int main(int argc, char **argv) {
         res << "HTTP/1.1 200 OK\r\n\r\n";
 
       } else if (req_buffer.starts_with("GET /echo/")) {
-        int route_index_start = req_buffer.find_first_of("/echo/", 0);
-        int route_index_end = route_index_start + 6;
-
-        int first_whitespace_index =
-            req_buffer.find_first_of(" ", route_index_end);
-
-        std::string extracted_str = req_buffer.substr(
-            route_index_end, first_whitespace_index - route_index_end);
-
-        res << build_res("200 OK", "text/plain", extracted_str, res);
-
+        res << build_res("200 OK", "text/plain",
+                         get_pathname(req_buffer, "echo"), res);
       } else if (req_buffer.starts_with("GET /user-agent")) {
         int headers_index_start = req_buffer.find_first_of("\r\n", 0) + 2;
         int headers_index_end =
@@ -129,6 +133,31 @@ int main(int argc, char **argv) {
                            user_agent_index_end - user_agent_index_start);
 
         res << build_res("200 OK", "text/plain", user_agent, res);
+
+      } else if (req_buffer.starts_with("GET /files")) {
+        std::string filename = get_pathname(req_buffer, "files");
+        std::string directory = "/tmp";
+        std::string full_path = directory + "/" + filename;
+        std::vector<std::string> files_in_directory;
+
+        for (const auto &entry :
+             std::filesystem::directory_iterator(directory)) {
+          files_in_directory.push_back(entry.path());
+        }
+
+        if (std::count(files_in_directory.begin(), files_in_directory.end(),
+                       directory + "/" + filename)) {
+
+          std::ifstream ifs(directory + "/" + filename);
+          std::string file_content((std::istreambuf_iterator<char>(ifs)),
+                                   (std::istreambuf_iterator<char>()));
+
+          res << build_res("200 OK", "application/octet-stream", file_content,
+                           res);
+
+        } else {
+          res << "HTTP/1.1 404 Not Found\r\n\r\n";
+        }
 
       } else {
         res << "HTTP/1.1 404 Not Found\r\n\r\n";
